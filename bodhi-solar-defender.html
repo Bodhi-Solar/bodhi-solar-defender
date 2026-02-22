@@ -175,8 +175,8 @@ let leaderboardLoading = false, leaderboardError = false;
 
 // ── SUPABASE CONFIG ────────────────────────────────────────────────────────────
 // Replace these with your actual Supabase project values
-const SUPABASE_URL  = 'YOUR_SUPABASE_URL';   // e.g. https://xyzxyz.supabase.co
-const SUPABASE_KEY  = 'YOUR_SUPABASE_ANON_KEY'; // your anon/public key
+const SUPABASE_URL  = 'https://moqqdjqdfepalwvulfhx.supabase.co';
+const SUPABASE_KEY  = 'sb_publishable__Bl0_ObXaqGGnyA584cqsw_pJOsm4L1';
 
 async function fetchLeaderboard() {
   leaderboardLoading = true; leaderboardError = false;
@@ -261,6 +261,13 @@ canvas.addEventListener('touchstart', e => {
 
     // ---- Title ----
     if (state === 'title') {
+      // Check leaderboard button tap
+      if (pos.x >= lbBtn.x && pos.x <= lbBtn.x + lbBtn.w &&
+          pos.y >= lbBtn.y && pos.y <= lbBtn.y + lbBtn.h) {
+        state = 'leaderboard'; nameEntered = true; victoryFireworks = [];
+        fetchLeaderboard();
+        return;
+      }
       state = 'playing'; level = 1; lives = 3; score = 0;
       resetLevel(); startMusic(1);
       return;
@@ -330,6 +337,45 @@ canvas.addEventListener('touchcancel', e => {
   e.preventDefault();
   touchMove = null; touchShoot = null;
 }, { passive: false });
+
+// ── Mouse click handler (desktop) ─────────────────────────────────────────────
+canvas.addEventListener('click', e => {
+  const pos = clientToGame(e.clientX, e.clientY);
+
+  if (state === 'title') {
+    // Check leaderboard button
+    if (pos.x >= lbBtn.x && pos.x <= lbBtn.x + lbBtn.w &&
+        pos.y >= lbBtn.y && pos.y <= lbBtn.y + lbBtn.h) {
+      state = 'leaderboard'; nameEntered = true; victoryFireworks = [];
+      fetchLeaderboard();
+      return;
+    }
+    // Anywhere else on title = start game
+    state = 'playing'; level = 1; lives = 3; score = 0;
+    resetLevel(); startMusic(1);
+    return;
+  }
+  if (state === 'gameOver') {
+    state = 'leaderboard'; nameEntered = false; playerName = '';
+    nameInput.value = ''; victoryFireworks = [];
+    nameInput.style.pointerEvents = 'auto'; nameInput.focus();
+    fetchLeaderboard();
+    return;
+  }
+  if (state === 'leaderboard') {
+    if (!nameEntered) {
+      if (pos.x >= confirmBtn.x && pos.x <= confirmBtn.x + confirmBtn.w &&
+          pos.y >= confirmBtn.y && pos.y <= confirmBtn.y + confirmBtn.h) {
+        nameEntered = true;
+        leaderboard.forEach(e2 => { e2.isNew = false; });
+        addToLeaderboard(playerName || 'ANON', score);
+        nameInput.style.pointerEvents = 'none';
+      }
+    } else {
+      state = 'title';
+    }
+  }
+});
 
 // ── Utility ────────────────────────────────────────────────────────────────────
 function px(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(Math.floor(x), Math.floor(y), w, h); }
@@ -629,7 +675,11 @@ function drawTouchZones(){
 }
 
 // ── TITLE SCREEN ───────────────────────────────────────────────────────────────
+let titleFetched = false;
 function drawTitle(){
+  // Pre-fetch leaderboard in background so it's ready when player clicks through
+  if (!titleFetched) { titleFetched = true; fetchLeaderboard(); }
+
   let sL=level; level=1; drawSky(); drawGrassland(Date.now()/50); drawSun(); level=sL;
   ctx.fillStyle='rgba(0,20,45,0.82)'; ctx.fillRect(162,60,700,510);
   ctx.strokeStyle=GOLD; ctx.lineWidth=3; ctx.strokeRect(162,60,700,510);
@@ -639,7 +689,7 @@ function drawTitle(){
   ctx.fillStyle=ORANGE; ctx.font='bold 36px monospace'; ctx.fillText('SOLAR DEFENDER',W/2,175);
   ctx.fillStyle=GOLD;   ctx.fillRect(280,190,464,2);
 
-  // Controls — show both if not definitively touch-only
+  // Controls
   ctx.fillStyle='#FFF'; ctx.font='15px monospace';
   if (!isTouchDevice) {
     ctx.fillText('Arrow Keys: Move  |  Spacebar: Shoot',W/2,230);
@@ -651,13 +701,21 @@ function drawTitle(){
   ctx.fillStyle=ORANGE; ctx.fillText('Destroy fossil fuel enemies!',W/2,315);
   ctx.fillStyle=GOLD;   ctx.fillText('Build solar panels & fill the power meter!',W/2,340);
 
-  drawHero(W/2-48, 390);
+  drawHero(W/2-48, 375);
 
-  ctx.fillStyle='#FFF'; ctx.font='12px monospace';
-  if (!isTouchDevice) ctx.fillText('ESC to exit at any time',W/2,460);
+  // Leaderboard button
+  let lbHover = false; // canvas doesn't track hover but we draw it consistently
+  ctx.fillStyle='rgba(0,40,80,0.85)'; ctx.fillRect(lbBtn.x, lbBtn.y, lbBtn.w, lbBtn.h);
+  ctx.strokeStyle=ORANGE; ctx.lineWidth=2; ctx.strokeRect(lbBtn.x, lbBtn.y, lbBtn.w, lbBtn.h);
+  ctx.fillStyle=ORANGE; ctx.font='bold 15px monospace';
+  ctx.fillText('🏆 VIEW LEADERBOARD', W/2, lbBtn.y + 24);
+
+  // Start prompt
+  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font='12px monospace';
+  if (!isTouchDevice) ctx.fillText('ESC to exit at any time', W/2, 515);
   ctx.fillStyle=GOLD; ctx.font='bold 20px monospace';
   let prompt = isTouchDevice ? 'TAP TO START' : 'PRESS SPACE TO START';
-  if(Math.sin(Date.now()/400)>0) ctx.fillText(prompt, W/2, 510);
+  if(Math.sin(Date.now()/400)>0) ctx.fillText(prompt, W/2, 545);
 }
 
 // ── LEADERBOARD ────────────────────────────────────────────────────────────────
@@ -705,6 +763,14 @@ function drawLeaderboard(){
   if(leaderboardLoading){
     ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='16px monospace';
     ctx.fillText('Loading scores...', W/2, sY+60);
+  } else if(SUPABASE_URL.includes('YOUR_SUPABASE') || SUPABASE_KEY.includes('YOUR_SUPABASE')){
+    ctx.textAlign='center';
+    ctx.fillStyle=ORANGE; ctx.font='bold 15px monospace';
+    ctx.fillText('⚠ Supabase credentials not configured', W/2, sY+50);
+    ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='13px monospace';
+    ctx.fillText('Open bodhi-solar-defender.html and replace', W/2, sY+76);
+    ctx.fillText('SUPABASE_URL and SUPABASE_KEY with your values.', W/2, sY+96);
+    ctx.fillText('See README.md for setup instructions.', W/2, sY+116);
   } else if(leaderboardError && leaderboard.length===0){
     ctx.textAlign='center'; ctx.fillStyle=ORANGE; ctx.font='14px monospace';
     ctx.fillText('Could not load scores.', W/2, sY+60);
@@ -797,6 +863,8 @@ function addToLeaderboard(name, sc) {
 
 // Touch leaderboard confirm button bounds (for tap detection)
 const confirmBtn = { x: W/2-80, y: 235, w: 160, h: 36 };
+// Title screen leaderboard button bounds
+const lbBtn = { x: W/2-120, y: 462, w: 240, h: 36 };
 
 // ── UPDATE ─────────────────────────────────────────────────────────────────────
 function update(dt=1){
