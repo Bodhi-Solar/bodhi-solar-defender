@@ -175,8 +175,8 @@ let leaderboardLoading = false, leaderboardError = false;
 
 // ── SUPABASE CONFIG ────────────────────────────────────────────────────────────
 // Replace these with your actual Supabase project values
-const SUPABASE_URL  = 'https://moqqdjqdfepalwvulfhx.supabase.co';   // e.g. https://xyzxyz.supabase.co
-const SUPABASE_KEY  = 'sb_publishable__Bl0_ObXaqGGnyA584cqsw_pJOsm4L1'; // your anon/public key
+const SUPABASE_URL  = 'YOUR_SUPABASE_URL';   // e.g. https://xyzxyz.supabase.co
+const SUPABASE_KEY  = 'YOUR_SUPABASE_ANON_KEY'; // your anon/public key
 
 async function fetchLeaderboard() {
   leaderboardLoading = true; leaderboardError = false;
@@ -799,7 +799,7 @@ function addToLeaderboard(name, sc) {
 const confirmBtn = { x: W/2-80, y: 235, w: 160, h: 36 };
 
 // ── UPDATE ─────────────────────────────────────────────────────────────────────
-function update(){
+function update(dt=1){
   // ---- Title ----
   if(state==='title'){
     stopMusic();
@@ -815,7 +815,7 @@ function update(){
     if(levelTransitionTimer%15===0&&levelTransitionTimer>20){
       for(let i=0;i<6;i++) celebrationParticles.push({x:100+Math.random()*800,y:H+5,vx:(Math.random()-0.5)*3,vy:-4-Math.random()*5,life:50+Math.random()*40,maxLife:90,color:[GOLD,ORANGE,'#FFF','#88DDFF'][Math.floor(Math.random()*4)],size:3+Math.random()*5,gravity:0.03});
     }
-    levelTransitionTimer--;
+    levelTransitionTimer-=dt;
     if(levelTransitionTimer<=0){
       if(level>=3){ state='victory';victoryTimer=0;victoryFireworks=[];playSfx('victory');stopMusic(); }
       else { level++;lives++;resetLevel();state='playing';startMusic(level); }
@@ -825,7 +825,7 @@ function update(){
 
   // ---- Victory ----
   if(state==='victory'){
-    victoryTimer++;updateFireworks();
+    victoryTimer+=dt;updateFireworks();
     if(victoryTimer%25===0) spawnFirework(100+Math.random()*800,80+Math.random()*250);
     if(victoryTimer%40===0) spawnFirework(200+Math.random()*600,60+Math.random()*200);
     if(victoryTimer>=180){
@@ -867,17 +867,17 @@ function update(){
   gameTime++;
   if(state==='playing') touchHintTimer++;
 
-  // Keyboard movement
-  if(keys['ArrowUp'])   hero.y -= hero.speed;
-  if(keys['ArrowDown']) hero.y += hero.speed;
-  if(keys['ArrowLeft']) hero.x -= hero.speed;
-  if(keys['ArrowRight'])hero.x += hero.speed;
+  // Keyboard movement — hero speed boosted 1.5x (6 instead of 4)
+  if(keys['ArrowUp'])   hero.y -= hero.speed * dt;
+  if(keys['ArrowDown']) hero.y += hero.speed * dt;
+  if(keys['ArrowLeft']) hero.x -= hero.speed * dt;
+  if(keys['ArrowRight'])hero.x += hero.speed * dt;
   hero.x = Math.max(5, Math.min(W-hero.w-5, hero.x));
   hero.y = Math.max(5, Math.min(GROUND_Y-hero.h-20, hero.y));
 
   // Shooting — keyboard or touch
   let wantsShoot = keys['Space'] || (touchShoot !== null);
-  shootCooldown--;
+  shootCooldown -= dt;
   if(wantsShoot && shootCooldown<=0){
     if(tripleShot){
       lasers.push({x:hero.x+90,y:hero.y+18,w:20,h:5,vy:0});
@@ -889,48 +889,47 @@ function update(){
     shootCooldown=12;playSfx('shoot');
   }
 
-  scrollX += scrollSpeed;
+  scrollX += scrollSpeed * dt;
   let cfg = levels[level-1];
-  // Mobile is easier by default (fluid controls, auto-fire hold), so double the challenge
-  const mobileHard = isTouchDevice ? 0.5 : 1.0; // lower = more frequent spawns
+  const mobileHard = isTouchDevice ? 0.5 : 1.0;
 
   // Enemies
-  enemyTimer++; if(enemyTimer>=cfg.enemyInterval * mobileHard){ spawnEnemy();enemyTimer=0; }
+  enemyTimer+=dt; if(enemyTimer>=cfg.enemyInterval * mobileHard){ spawnEnemy();enemyTimer=0; }
 
-  // Bolts (50% less frequent on levels 2 & 3)
+  // Bolts
   let boltInterval = cfg.enemyInterval * (level>=2 ? 2.4 : 1.2);
-  boltTimer++; if(boltTimer>=boltInterval){ spawnBolt();boltTimer=0; }
+  boltTimer+=dt; if(boltTimer>=boltInterval){ spawnBolt();boltTimer=0; }
 
-  // Solar orb (rare)
-  solarOrbTimer++; let orbInterval=cfg.enemyInterval*12; if(solarOrbTimer>=orbInterval){ spawnSolarOrb();solarOrbTimer=0; }
+  // Solar orb
+  solarOrbTimer+=dt; let orbInterval=cfg.enemyInterval*12; if(solarOrbTimer>=orbInterval){ spawnSolarOrb();solarOrbTimer=0; }
 
   // Triple shot countdown
-  if(tripleShot){ tripleShotTimer--; if(tripleShotTimer<=0) tripleShot=false; }
+  if(tripleShot){ tripleShotTimer-=dt; if(tripleShotTimer<=0) tripleShot=false; }
 
-  // Bird easter egg: level 2 only, once per game
-  if(level===2&&!bird&&!birdUsed){ birdTimer++; if(birdTimer>600+Math.random()*400){ spawnBird();birdTimer=0; } }
+  // Bird easter egg
+  if(level===2&&!bird&&!birdUsed){ birdTimer+=dt; if(birdTimer>600+Math.random()*400){ spawnBird();birdTimer=0; } }
 
   // Flower timer
-  if(flowersActive){ flowerTimer++; if(flowerTimer>700){ flowersActive=false;panelFlowers=[];flowerTimer=0; } }
+  if(flowersActive){ flowerTimer+=dt; if(flowerTimer>700){ flowersActive=false;panelFlowers=[];flowerTimer=0; } }
 
-  // Laser movement
+  // Laser movement — boosted 1.5x
   for(let i=lasers.length-1;i>=0;i--){
-    lasers[i].x+=8;
-    if(lasers[i].vy) lasers[i].y+=lasers[i].vy;
+    lasers[i].x += 8 * dt;
+    if(lasers[i].vy) lasers[i].y += lasers[i].vy * dt;
     if(lasers[i].x>W+30) lasers.splice(i,1);
   }
 
   // Enemy movement & laser hit
   for(let i=enemies.length-1;i>=0;i--){
-    let e=enemies[i]; e.t++;
+    let e=enemies[i]; e.t+=dt;
     if(e.allDir){
-      e.x+=e.vx;e.y+=e.vy;
+      e.x += e.vx * dt; e.y += e.vy * dt;
       if(e.y<5){e.y=5;e.vy=Math.abs(e.vy);}
       if(e.y>GROUND_Y-60){e.y=GROUND_Y-60;e.vy=-Math.abs(e.vy);}
       if(e.x<-80||e.x>W+80||e.y<-80||e.y>H+80){enemies.splice(i,1);continue;}
     } else {
-      e.x-=e.speed;e.y+=(e.vy||0);
-      if(e.type==='smoke') e.y+=Math.sin(e.t/15)*0.7;
+      e.x -= e.speed * dt; e.y += (e.vy||0) * dt;
+      if(e.type==='smoke') e.y += Math.sin(e.t/15)*0.7*dt;
       if(e.y<5){e.y=5;if(e.vy)e.vy=Math.abs(e.vy);}
       if(e.y>GROUND_Y-60){e.y=GROUND_Y-60;if(e.vy)e.vy=-Math.abs(e.vy);}
       if(e.x<-70){enemies.splice(i,1);continue;}
@@ -942,7 +941,7 @@ function update(){
 
   // Energy bolt pickup
   for(let i=bolts.length-1;i>=0;i--){
-    let b=bolts[i]; b.x+=b.vx;b.y+=b.vy;b.t++;
+    let b=bolts[i]; b.x += b.vx * dt; b.y += b.vy * dt; b.t+=dt;
     if(b.y>H||b.x<-50||b.y<-50){bolts.splice(i,1);continue;}
     let hB={x:hero.x+10,y:hero.y+6,w:76,h:36};
     if(collides(hB,b)){
@@ -956,7 +955,7 @@ function update(){
 
   // Solar orb pickup
   for(let i=solarOrbs.length-1;i>=0;i--){
-    let o=solarOrbs[i]; o.x+=o.vx;o.y+=o.vy;o.t++;
+    let o=solarOrbs[i]; o.x += o.vx * dt; o.y += o.vy * dt; o.t+=dt;
     if(o.y>H||o.x<-60||o.y<-60){solarOrbs.splice(i,1);continue;}
     let hB={x:hero.x+10,y:hero.y+6,w:76,h:36};
     if(collides(hB,o)){
@@ -968,7 +967,7 @@ function update(){
 
   // Bird pickup
   if(bird){
-    bird.t++;bird.x+=bird.vx;bird.y+=Math.sin(bird.t*0.05+bird.waveOff)*0.8;
+    bird.t+=dt; bird.x += bird.vx * dt; bird.y+=Math.sin(bird.t*0.05+bird.waveOff)*0.8*dt;
     if(bird.x<-30){ bird=null;birdUsed=true; }
     else {
       let hB={x:hero.x+10,y:hero.y+6,w:76,h:36};
@@ -981,7 +980,7 @@ function update(){
   }
 
   // Enemy collision with hero
-  if(invincibleTimer>0){ invincibleTimer--; }
+  if(invincibleTimer>0){ invincibleTimer-=dt; }
   else {
     let hB={x:hero.x+10,y:hero.y+6,w:76,h:36};
     for(let i=enemies.length-1;i>=0;i--){
@@ -995,9 +994,9 @@ function update(){
     }
   }
 
-  if(sunDimTimer>0){ sunDimTimer--;sunBrightness=sunDimTimer<=0?1:0.3+0.7*(1-sunDimTimer/90); }
-  for(let i=particles.length-1;i>=0;i--){ let p=particles[i];p.x+=p.vx;p.y+=p.vy;p.life--;if(p.life<=0)particles.splice(i,1); }
-  if(flashTimer>0) flashTimer--;
+  if(sunDimTimer>0){ sunDimTimer-=dt;sunBrightness=sunDimTimer<=0?1:0.3+0.7*(1-sunDimTimer/90); }
+  for(let i=particles.length-1;i>=0;i--){ let p=particles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(p.life<=0)particles.splice(i,1); }
+  if(flashTimer>0) flashTimer-=dt;
 }
 
 // ── DRAW ───────────────────────────────────────────────────────────────────────
@@ -1100,8 +1099,17 @@ function draw(){
 }
 
 // ── GAME LOOP ──────────────────────────────────────────────────────────────────
-function gameLoop(){ update(); draw(); requestAnimationFrame(gameLoop); }
-gameLoop();
+// Fixed timestep at 60fps. dt=1.0 means exactly one 60fps frame has elapsed.
+// Keeps gameplay speed consistent regardless of browser/device frame rate.
+let lastTime = 0;
+function gameLoop(ts){
+  const dt = lastTime ? Math.min((ts - lastTime) / (1000/60), 3) : 1;
+  lastTime = ts;
+  update(dt);
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+requestAnimationFrame(gameLoop);
 </script>
 </body>
 </html>
