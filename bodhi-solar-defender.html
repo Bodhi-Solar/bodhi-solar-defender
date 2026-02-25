@@ -162,7 +162,7 @@ let scrollX = 0, scrollSpeed = 1;
 let sunBrightness = 1, sunDimTimer = 0, screenDim = 0;
 let invincibleTimer = 0, levelTransitionTimer = 0, flashTimer = 0;
 let keys = {};
-let enemies = [], lasers = [], bolts = [], particles = [], solarPanels = [];
+let enemies = [], lasers = [], bolts = [], particles = [], solarPanels = [], floatingTexts = [];
 let enemyTimer = 0, boltTimer = 0, shootCooldown = 0, gameTime = 0;
 let nextPanelX = 60;
 // Solar orb power-up
@@ -619,6 +619,7 @@ function drawSolarPanels(){
 
 // ── PARTICLES ──────────────────────────────────────────────────────────────────
 function spawnExplosion(x,y){for(let i=0;i<18;i++){let a=Math.random()*Math.PI*2,s=1.5+Math.random()*4;particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:20+Math.random()*18,maxLife:38,color:[ORANGE,GOLD,'#FF4444','#FFF',ORANGE_LIGHT][Math.floor(Math.random()*5)],size:3+Math.random()*6});}}
+function spawnFloatingText(x,y,text,color){floatingTexts.push({x,y,text,color:color||GOLD,life:60,maxLife:60,vy:-1.2});}
 function spawnCelebration(){celebrationParticles=[];for(let i=0;i<100;i++){celebrationParticles.push({x:W/2+(Math.random()-0.5)*400,y:H+10,vx:(Math.random()-0.5)*5,vy:-3-Math.random()*6,life:60+Math.random()*60,maxLife:120,color:[GOLD,ORANGE,'#FFF',ORANGE_LIGHT,'#88DDFF','#FF88AA'][Math.floor(Math.random()*6)],size:3+Math.random()*6,gravity:0.03});}}
 function spawnFirework(x,y){let cs=[GOLD,ORANGE,'#FF88AA','#88DDFF','#FFF',ORANGE_LIGHT,'#88FF88'],c=cs[Math.floor(Math.random()*cs.length)];for(let i=0;i<30;i++){let a=Math.random()*Math.PI*2,s=1+Math.random()*4;victoryFireworks.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:30+Math.random()*30,maxLife:60,color:c,size:2+Math.random()*4,gravity:0.04});}}
 function updateCelebrationParticles(){for(let i=celebrationParticles.length-1;i>=0;i--){let p=celebrationParticles[i];p.x+=p.vx;p.y+=p.vy;p.vy+=p.gravity;p.life--;if(p.life<=0)celebrationParticles.splice(i,1);}}
@@ -641,7 +642,7 @@ function drawHUD(){
   ctx.fillStyle='#FFF';ctx.font='bold 13px monospace';ctx.textAlign='left';ctx.fillText('LIVES',10,380);
   for(let i=0;i<lives;i++){px(10+i*18,388,14,14,ORANGE);px(12+i*18,390,10,10,GOLD);}
   // Score & level
-  ctx.fillStyle=GOLD;ctx.font='bold 16px monospace';ctx.textAlign='right';ctx.fillText('SCORE: '+score,W-20,30);
+  ctx.fillStyle='#000';ctx.font='bold 16px monospace';ctx.textAlign='right';ctx.fillText('SCORE: '+score,W-20,30);
   ctx.textAlign='center';ctx.fillStyle=ORANGE;ctx.font='bold 16px monospace';ctx.fillText('LEVEL '+level+': '+levels[level-1].name,W/2,30);
   // Controls hint (adapts to input device)
   ctx.fillStyle='rgba(255,255,255,0.4)';ctx.font='11px monospace';ctx.textAlign='right';
@@ -838,7 +839,7 @@ function bloomExistingPanels(){
 // ── HELPERS ────────────────────────────────────────────────────────────────────
 function collides(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
 function resetLevel(){
-  enemies=[];lasers=[];bolts=[];particles=[];solarPanels=[];celebrationParticles=[];
+  enemies=[];lasers=[];bolts=[];particles=[];solarPanels=[];celebrationParticles=[];floatingTexts=[];
   powerMeter=0;enemyTimer=0;boltTimer=0;hero.x=100;hero.y=250;
   sunBrightness=1;invincibleTimer=0;screenDim=0;nextPanelX=60;
   solarOrbs=[];solarOrbTimer=0;tripleShot=false;tripleShotTimer=0;
@@ -1003,7 +1004,7 @@ function update(dt=1){
       if(e.x<-70){enemies.splice(i,1);continue;}
     }
     for(let j=lasers.length-1;j>=0;j--){
-      if(collides(lasers[j],e)){ spawnExplosion(e.x+28,e.y+28);score+=50;playSfx('explode');enemies.splice(i,1);lasers.splice(j,1);break; }
+      if(collides(lasers[j],e)){ let pts=level===1?25:level===2?50:75; spawnExplosion(e.x+28,e.y+28);score+=pts;spawnFloatingText(e.x+28,e.y+28,'+'+pts,ORANGE);playSfx('explode');enemies.splice(i,1);lasers.splice(j,1);break; }
     }
   }
 
@@ -1014,10 +1015,11 @@ function update(dt=1){
     let hB={x:hero.x+10,y:hero.y+6,w:76,h:36};
     if(collides(hB,b)){
       powerMeter=Math.min(10,powerMeter+1);score+=100;addSolarPanel();
+      spawnFloatingText(b.x+21,b.y+24,'+100',GOLD);
       screenDim=Math.max(0,screenDim-0.15);playSfx('collect');
       for(let k=0;k<8;k++) particles.push({x:b.x+21,y:b.y+24,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4,life:18,maxLife:18,color:GOLD,size:4});
       bolts.splice(i,1);
-      if(powerMeter>=10){ state='levelComplete';levelTransitionTimer=180;score+=500;playSfx('levelup');spawnCelebration();stopMusic(); }
+      if(powerMeter>=10){ let bonus=level>=3?1000:500; state='levelComplete';levelTransitionTimer=180;score+=bonus;playSfx('levelup');spawnCelebration();stopMusic(); }
     }
   }
 
@@ -1027,7 +1029,7 @@ function update(dt=1){
     if(o.y>H||o.x<-60||o.y<-60){solarOrbs.splice(i,1);continue;}
     let hB={x:hero.x+10,y:hero.y+6,w:76,h:36};
     if(collides(hB,o)){
-      tripleShot=true;tripleShotTimer=300;score+=200;playSfx('levelup');
+      tripleShot=true;tripleShotTimer=300;score+=200;spawnFloatingText(o.x+12,o.y+12,'+200','#FFE866');playSfx('levelup');
       for(let k=0;k<16;k++) particles.push({x:o.x+12,y:o.y+12,vx:(Math.random()-0.5)*6,vy:(Math.random()-0.5)*6,life:25,maxLife:25,color:['#FF8C00','#FFC200','#FFE866','#FFF'][Math.floor(Math.random()*4)],size:4+Math.random()*4});
       solarOrbs.splice(i,1);
     }
@@ -1064,6 +1066,7 @@ function update(dt=1){
 
   if(sunDimTimer>0){ sunDimTimer-=dt;sunBrightness=sunDimTimer<=0?1:0.3+0.7*(1-sunDimTimer/90); }
   for(let i=particles.length-1;i>=0;i--){ let p=particles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(p.life<=0)particles.splice(i,1); }
+  for(let i=floatingTexts.length-1;i>=0;i--){ let ft=floatingTexts[i];ft.y+=ft.vy*dt;ft.life-=dt;if(ft.life<=0)floatingTexts.splice(i,1); }
   if(flashTimer>0) flashTimer-=dt;
 }
 
@@ -1085,6 +1088,8 @@ function draw(){
   if(state==='playing'||state==='levelComplete') drawHero(hero.x,hero.y);
   particles.forEach(p=>{ctx.globalAlpha=p.life/p.maxLife;ctx.fillStyle=p.color;ctx.fillRect(Math.floor(p.x),Math.floor(p.y),p.size,p.size);});
   ctx.globalAlpha=1;
+  floatingTexts.forEach(ft=>{let a=ft.life/ft.maxLife;ctx.globalAlpha=a;ctx.fillStyle=ft.color;ctx.font='bold 18px monospace';ctx.textAlign='center';ctx.fillText(ft.text,Math.floor(ft.x),Math.floor(ft.y));});
+  ctx.globalAlpha=1;ctx.textAlign='left';
   drawHUD();
 
   // Mobile touch zones (fades out early game)
@@ -1103,20 +1108,22 @@ function draw(){
 
   // Level complete overlay
   if(state==='levelComplete'){
+    let levelBonus=level>=3?1000:500;
     drawCelebrationParticles();
-    ctx.fillStyle='rgba(0,20,45,0.75)';ctx.fillRect(200,170,624,280);
-    ctx.strokeStyle=GOLD;ctx.lineWidth=3;ctx.strokeRect(200,170,624,280);
-    ctx.strokeStyle=ORANGE;ctx.lineWidth=1;ctx.strokeRect(205,175,614,270);
+    ctx.fillStyle='rgba(0,20,45,0.75)';ctx.fillRect(200,155,624,310);
+    ctx.strokeStyle=GOLD;ctx.lineWidth=3;ctx.strokeRect(200,155,624,310);
+    ctx.strokeStyle=ORANGE;ctx.lineWidth=1;ctx.strokeRect(205,160,614,300);
     ctx.textAlign='center';
-    ctx.fillStyle=GOLD;ctx.font='32px monospace';ctx.fillText('★ ★ ★',W/2,208);
-    ctx.fillStyle=GOLD;ctx.font='bold 36px monospace';ctx.fillText('LEVEL '+level+' COMPLETE!',W/2,252);
-    ctx.fillStyle='#FFF';ctx.font='bold 22px monospace';ctx.fillText('You saved '+levelNames[level-1]+'!',W/2,290);
-    ctx.fillStyle=ORANGE;ctx.font='18px monospace';ctx.fillText('Score: '+score,W/2,325);
-    ctx.fillStyle=GOLD;ctx.font='16px monospace';ctx.fillText(solarPanels.length+' solar panels installed!',W/2,355);
+    ctx.fillStyle=GOLD;ctx.font='32px monospace';ctx.fillText('★ ★ ★',W/2,193);
+    ctx.fillStyle=GOLD;ctx.font='bold 36px monospace';ctx.fillText('LEVEL '+level+' COMPLETE!',W/2,237);
+    ctx.fillStyle='#FFF';ctx.font='bold 22px monospace';ctx.fillText('You saved '+levelNames[level-1]+'!',W/2,272);
+    ctx.fillStyle=ORANGE;ctx.font='18px monospace';ctx.fillText('Score: '+score,W/2,305);
+    ctx.fillStyle='#88FF88';ctx.font='bold 17px monospace';ctx.fillText('+'+levelBonus+' LEVEL COMPLETE BONUS!',W/2,332);
+    ctx.fillStyle=GOLD;ctx.font='16px monospace';ctx.fillText(solarPanels.length+' solar panels installed!',W/2,357);
     if(level<3){
-      ctx.fillStyle=GOLD;ctx.font='bold 16px monospace';ctx.fillText('+1 EXTRA LIFE!',W/2,385);
+      ctx.fillStyle=GOLD;ctx.font='bold 16px monospace';ctx.fillText('+1 EXTRA LIFE!',W/2,382);
       ctx.fillStyle=ORANGE_LIGHT;ctx.font='16px monospace';
-      if(Math.sin(Date.now()/300)>0) ctx.fillText('Next: '+levels[level].name+' awaits...',W/2,415);
+      if(Math.sin(Date.now()/300)>0) ctx.fillText('Next: '+levels[level].name+' awaits...',W/2,410);
     } else {
       ctx.fillStyle=GOLD;ctx.font='bold 16px monospace';
       if(Math.sin(Date.now()/300)>0) ctx.fillText('Preparing final celebration...',W/2,400);
