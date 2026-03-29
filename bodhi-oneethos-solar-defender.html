@@ -170,6 +170,7 @@ let solarOrbs = [], solarOrbTimer = 0, tripleShot = false, tripleShotTimer = 0;
 // OneEthos partner hero
 let oneEthosHero = null; // {x, y, targetX, targetY, active, captured}
 let oneEthosSpawned = false, duoFormed = false;
+let duoCelebrationTimer = 0; // countdown for duo formation celebration overlay
 const OE_BLUE = '#247bfe', OE_WHITE = '#ffffff';
 // Bird easter egg (level 2)
 let bird = null, birdTimer = 0, birdUsed = false, flowersActive = false, flowerTimer = 0, panelFlowers = [];
@@ -431,7 +432,11 @@ function stopMusic() { musicPlaying = false; if (musicInterval) { clearInterval(
 
 // ── HERO ───────────────────────────────────────────────────────────────────────
 function drawHero(x, y) {
-  let X = Math.floor(x), Y = Math.floor(y);
+  let S = 0.75;
+  ctx.save();
+  ctx.translate(Math.floor(x), Math.floor(y));
+  ctx.scale(S, S);
+  let X = 0, Y = 0;
   let cw1 = Math.sin(Date.now()/140)*3, cw2 = Math.sin(Date.now()/110+1)*2.5, cw3 = Math.sin(Date.now()/90+2)*2;
   // Cape
   px(X+22, Y+8,  24, 5, ORANGE);
@@ -472,10 +477,15 @@ function drawHero(x, y) {
     ctx.globalAlpha = 0.35; ctx.fillStyle = GOLD;
     ctx.fillRect(X-34, Y-8, 132, 42); ctx.globalAlpha = 1;
   }
+  ctx.restore();
 }
 
 function drawOneEthosHero(x, y) {
-  let X = Math.floor(x), Y = Math.floor(y);
+  let S = 0.75;
+  ctx.save();
+  ctx.translate(Math.floor(x), Math.floor(y));
+  ctx.scale(S, S);
+  let X = 0, Y = 0;
   let cw1 = Math.sin(Date.now()/140)*3, cw2 = Math.sin(Date.now()/110+1)*2.5, cw3 = Math.sin(Date.now()/90+2)*2;
   // Cape (OE_BLUE instead of ORANGE)
   px(X+22, Y+8,  24, 5, OE_BLUE);
@@ -512,18 +522,19 @@ function drawOneEthosHero(x, y) {
   px(X+20, Y+14, 34, 3, OE_WHITE);
   px(X+34, Y+18,  8, 7, OE_WHITE);
   px(X+36, Y+20,  4, 3, OE_BLUE);
+  ctx.restore();
 }
 
 function drawHeroDuo(x, y) {
-  // OneEthos on bottom (offset down)
-  drawOneEthosHero(x, y + 16);
+  // OneEthos on bottom (offset down — scaled sprites are ~22px tall)
+  drawOneEthosHero(x, y + 28);
   // Bodhi on top
   drawHero(x, y);
   // Duo glow effect
   let pulse = Math.sin(Date.now()/200) * 0.1 + 0.2;
   ctx.globalAlpha = pulse;
   ctx.fillStyle = OE_BLUE;
-  ctx.fillRect(Math.floor(x) - 10, Math.floor(y) - 4, 110, 60);
+  ctx.fillRect(Math.floor(x) - 8, Math.floor(y) - 4, 80, 56);
   ctx.globalAlpha = 1;
 }
 
@@ -740,7 +751,14 @@ function drawTitle(){
   ctx.strokeStyle=GOLD; ctx.lineWidth=3; ctx.strokeRect(162,60,700,510);
   ctx.strokeStyle=ORANGE; ctx.lineWidth=1; ctx.strokeRect(167,65,690,500);
   ctx.textAlign='center';
-  ctx.fillStyle=GOLD;   ctx.font='bold 52px monospace'; ctx.fillText('BODHI+ONEETHOS',W/2,130);
+  ctx.font='bold 52px monospace';
+  let _tw1=ctx.measureText('BODHI').width, _tw2=ctx.measureText('+').width, _tw3=ctx.measureText('ONEETHOS').width;
+  let _totalW=_tw1+_tw2+_tw3, _startX=W/2-_totalW/2;
+  ctx.textAlign='left';
+  ctx.fillStyle=GOLD;    ctx.fillText('BODHI',_startX,130);
+  ctx.fillStyle=OE_WHITE; ctx.fillText('+',_startX+_tw1,130);
+  ctx.fillStyle=OE_BLUE;  ctx.fillText('ONEETHOS',_startX+_tw1+_tw2,130);
+  ctx.textAlign='center';
   ctx.fillStyle=ORANGE; ctx.font='bold 36px monospace'; ctx.fillText('SOLAR DEFENDER',W/2,175);
   ctx.fillStyle=GOLD;   ctx.fillRect(280,190,464,2);
 
@@ -898,6 +916,7 @@ function resetLevel(){
   sunBrightness=1;invincibleTimer=0;screenDim=0;nextPanelX=60;
   solarOrbs=[];solarOrbTimer=0;tripleShot=false;tripleShotTimer=0;
   if(duoFormed) { oneEthosHero={x:0,y:0,captured:true,t:0}; oneEthosSpawned=true; tripleShot=true; } else { oneEthosHero=null;oneEthosSpawned=false; }
+  duoCelebrationTimer=0;
   bird=null;birdTimer=0;birdUsed=false;flowersActive=false;flowerTimer=0;panelFlowers=[];
   touchHintTimer=0;
 }
@@ -988,6 +1007,12 @@ function update(dt=1){
   }
 
   // ---- Playing ----
+  // Duo celebration timer — keep fireworks going, slow gameplay
+  if(duoCelebrationTimer>0){
+    duoCelebrationTimer-=dt;
+    updateFireworks();
+    if(duoCelebrationTimer%12===0) spawnFirework(100+Math.random()*800,60+Math.random()*250);
+  }
   gameTime++;
   if(state==='playing') touchHintTimer++;
 
@@ -1021,9 +1046,21 @@ function update(dt=1){
       oneEthosHero.captured = true;
       duoFormed = true;
       tripleShot = true; // permanent triple cannon
+      duoCelebrationTimer = 240; // 4 second celebration
       playSfx('victory');
-      spawnFloatingText(hero.x + 48, hero.y - 10, 'DUO FORMED!', OE_BLUE);
-      for(let k=0;k<30;k++) particles.push({x:hero.x+48,y:hero.y+24,vx:(Math.random()-0.5)*8,vy:(Math.random()-0.5)*8,life:30,maxLife:30,color:[OE_BLUE,OE_WHITE,GOLD,ORANGE][Math.floor(Math.random()*4)],size:4+Math.random()*5});
+      // Massive particle explosion — rings of particles
+      for(let ring=0;ring<3;ring++){
+        for(let k=0;k<30;k++){
+          let a=Math.random()*Math.PI*2, spd=3+ring*3+Math.random()*4;
+          particles.push({x:hero.x+48,y:hero.y+24,vx:Math.cos(a)*spd,vy:Math.sin(a)*spd,life:40+ring*15,maxLife:55+ring*15,color:[OE_BLUE,OE_WHITE,GOLD,ORANGE,'#88DDFF','#FF88AA'][Math.floor(Math.random()*6)],size:3+Math.random()*6});
+        }
+      }
+      // Fireworks bursts
+      spawnFirework(hero.x-60, hero.y-40);
+      spawnFirework(hero.x+160, hero.y-60);
+      spawnFirework(W/2, 80);
+      spawnFirework(200, 120);
+      spawnFirework(W-200, 100);
     }
   }
 
@@ -1039,12 +1076,15 @@ function update(dt=1){
   let wantsShoot = keys['Space'] || (touchShoot !== null);
   shootCooldown -= dt;
   if(wantsShoot && shootCooldown<=0){
+    // Laser origin: scaled sprite is 75% size (~72px wide). Duo fires from midpoint between heroes.
+    let laserX = duoFormed ? hero.x+68 : hero.x+68;
+    let laserY = duoFormed ? hero.y+22 : hero.y+14;
     if(tripleShot){
-      lasers.push({x:hero.x+90,y:hero.y+18,w:20,h:5,vy:0});
-      lasers.push({x:hero.x+80,y:hero.y+10,w:20,h:5,vy:-1.8});
-      lasers.push({x:hero.x+80,y:hero.y+26,w:20,h:5,vy:1.8});
+      lasers.push({x:laserX,y:laserY,w:20,h:5,vy:0});
+      lasers.push({x:laserX-6,y:laserY-8,w:20,h:5,vy:-1.8});
+      lasers.push({x:laserX-6,y:laserY+8,w:20,h:5,vy:1.8});
     } else {
-      lasers.push({x:hero.x+90,y:hero.y+18,w:20,h:5,vy:0});
+      lasers.push({x:laserX,y:laserY,w:20,h:5,vy:0});
     }
     shootCooldown=12;playSfx('shoot');
   }
@@ -1212,6 +1252,61 @@ function draw(){
 
   if(flashTimer>0){ ctx.globalAlpha=0.3;ctx.fillStyle=ORANGE;ctx.fillRect(0,0,W,H);ctx.globalAlpha=1; }
   if(screenDim>0){  ctx.globalAlpha=screenDim;ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);ctx.globalAlpha=1; }
+
+  // Duo formation celebration overlay
+  if(duoCelebrationTimer>0){
+    drawFireworks();
+    let t=duoCelebrationTimer, prog=1-t/240;
+    // Dramatic background darken
+    let bgAlpha=t>200?((240-t)/40)*0.7 : t<40?(t/40)*0.7 : 0.7;
+    ctx.globalAlpha=bgAlpha;ctx.fillStyle=NAVY;ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;
+    // Glowing border box
+    let boxW=660, boxH=300, boxX=(W-boxW)/2, boxY=(H-boxH)/2-20;
+    let pulse=Math.sin(Date.now()/150)*0.15+0.85;
+    ctx.globalAlpha=pulse*0.9;
+    ctx.fillStyle='rgba(0,20,45,0.92)';ctx.fillRect(boxX,boxY,boxW,boxH);
+    ctx.strokeStyle=OE_BLUE;ctx.lineWidth=3;ctx.strokeRect(boxX,boxY,boxW,boxH);
+    ctx.strokeStyle=GOLD;ctx.lineWidth=1;ctx.strokeRect(boxX+5,boxY+5,boxW-10,boxH-10);
+    ctx.globalAlpha=1;
+    ctx.textAlign='center';
+    // Stars
+    if(t<200){
+      let starCount=Math.min(5,Math.floor((240-t)/15));
+      let starStr='';for(let i=0;i<starCount;i++) starStr+='★ ';
+      ctx.fillStyle=GOLD;ctx.font='28px monospace';ctx.fillText(starStr.trim(),W/2,boxY+38);
+    }
+    // Main headline — slides in
+    if(t<220){
+      ctx.fillStyle=OE_BLUE;ctx.font='bold 18px monospace';ctx.fillText('>> ALLIANCE FORGED <<',W/2,boxY+65);
+      ctx.font='bold 40px monospace';
+      let _cw1=ctx.measureText('BODHI ').width, _cw2=ctx.measureText('+ ').width, _cw3=ctx.measureText('ONEETHOS').width;
+      let _ctW=_cw1+_cw2+_cw3, _csX=W/2-_ctW/2;
+      ctx.textAlign='left';
+      ctx.fillStyle=GOLD;    ctx.fillText('BODHI ',_csX,boxY+110);
+      ctx.fillStyle=OE_WHITE; ctx.fillText('+ ',_csX+_cw1,boxY+110);
+      ctx.fillStyle=OE_BLUE;  ctx.fillText('ONEETHOS',_csX+_cw1+_cw2,boxY+110);
+      ctx.textAlign='center';
+    }
+    // Taglines — stagger in
+    if(t<180){
+      ctx.fillStyle=ORANGE;ctx.font='bold 20px monospace';
+      ctx.fillText('UNITED AGAINST FOSSIL FUEL!',W/2,boxY+150);
+    }
+    if(t<140){
+      ctx.fillStyle='#FFF';ctx.font='16px monospace';
+      ctx.fillText('TWO HEROES. ONE MISSION. ZERO EMISSIONS.',W/2,boxY+185);
+    }
+    if(t<100){
+      ctx.fillStyle=OE_WHITE;ctx.font='bold 15px monospace';
+      ctx.fillText('TRIPLE CANNON UNLOCKED!',W/2,boxY+220);
+      // Draw mini duo sprite in the box
+      drawHeroDuo(W/2-36, boxY+218);
+    }
+    if(t<60){
+      ctx.fillStyle=GOLD;ctx.font='bold 17px monospace';
+      if(Math.sin(Date.now()/250)>0) ctx.fillText('GET READY TO FIGHT!',W/2,boxY+290);
+    }
+  }
 
   // Level complete overlay
   if(state==='levelComplete'){
